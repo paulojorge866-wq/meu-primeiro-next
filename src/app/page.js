@@ -24,10 +24,17 @@ export default function Home() {
         {/* Navegação entre rotas */}
         <div className="mt-6 flex flex-col gap-2">
           <Link 
+            href="/produtos"
+            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-5 py-2.5 rounded-xl transition duration-200 text-sm"
+          >
+            Gerenciador Full-Stack (API Route) →
+          </Link>
+
+          <Link 
             href="/usuarios"
             className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2.5 rounded-xl transition duration-200 text-sm"
           >
-            Consumo de API (Server Component) →
+            Consumo de API (Server Component)
           </Link>
 
           <Link 
