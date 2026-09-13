@@ -363,7 +363,7 @@ export default function Home() {
     return bateuCat && bateuNome
   })
 
-  const listaMesas = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  const listaMesas = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10,]
 
   const pedidosPagos = pedidos.filter((p) => p.pagamentoStatus === 'Pago')
 
