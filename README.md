@@ -20,3 +20,10 @@ Aplicação Full Stack desenvolvida para gerenciamento de pedidos e produtos em 
 1. Clone o repositório:
 ```bash
 git clone https://github.com/SEU_USUARIO_GITHUB/devlanches.git
+
+### 🔑 Acesso para Demonstração
+
+Para testar o painel administrativo da aplicação, utilize as credenciais abaixo:
+
+- **Usuário:** admin
+- **Senha:** 1234
