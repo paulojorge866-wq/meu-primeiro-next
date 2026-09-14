@@ -842,15 +842,25 @@ export default function Home() {
                         }`}
                       >
                         <div className="flex justify-between items-center mb-2">
-                          <span className="bg-amber-500/20 text-amber-400 font-extrabold px-2 py-0.5 rounded text-xs">
-                            MESA {p.mesa}
-                          </span>
-                          <span className={`text-xs font-bold ${
-                            estaConcluido ? 'text-green-400' : p.status === 'Em Preparo' ? 'text-blue-400' : 'text-yellow-400'
-                          }`}>
-                            {estaConcluido ? '✓ Concluído' : p.status}
-                          </span>
-                        </div>
+  <div className="flex items-center gap-2">
+    <span className="bg-amber-500/20 text-amber-400 font-extrabold px-2 py-0.5 rounded text-xs">
+      MESA {p.mesa}
+    </span>
+    
+    {/* Horário de chegada destacado */}
+ <span className="text-xl font-black text-red-500 font-mono">
+  {p.criadoEm 
+    ? new Date(p.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) 
+    : (p.hora || '19:45')}
+</span>
+  </div>
+
+  <span className={`text-xs font-bold ${
+    estaConcluido ? 'text-green-400' : p.status === 'Em Preparo' ? 'text-blue-400' : 'text-yellow-500'
+  }`}>
+    {estaConcluido ? '✓ Concluído' : p.status}
+  </span>
+</div>
 
                         <div className="space-y-1.5 mb-3">
                           {p.itens.map((i, idx) => (
