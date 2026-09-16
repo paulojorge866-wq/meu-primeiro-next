@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function Home() {
   const [autenticado, setAutenticado] = useState(false)
@@ -12,6 +12,22 @@ export default function Home() {
   const [produtos, setProdutos] = useState([])
   const [pedidos, setPedidos] = useState([])
   const [carregando, setCarregando] = useState(true)
+
+  // 🔴 Estados e lógica para o som da cozinha
+  const [somAtivo, setSomAtivo] = useState(false)
+  const qtdPedidosAnterior = useRef(0)
+
+  const tocarNotificacao = () => {
+    const audio = new Audio('/campainha.mp3')
+    audio.play().catch((err) => console.log('Aguardando clique do usuário:', err))
+  }
+
+  useEffect(() => {
+    if (pedidos.length > qtdPedidosAnterior.current && qtdPedidosAnterior.current > 0 && somAtivo) {
+      tocarNotificacao()
+    }
+    qtdPedidosAnterior.current = pedidos.length
+  }, [pedidos, somAtivo])
 
   // Formulário Produtos
   const [nome, setNome] = useState('')
@@ -822,10 +838,26 @@ export default function Home() {
 
           {abaAtiva === 'cozinha' && (
             <section className="bg-slate-800 border border-slate-700 p-4 sm:p-6 rounded-xl shadow-lg">
-              <h2 className="text-xl sm:text-2xl font-bold mb-6 text-amber-400 flex justify-between items-center border-b border-slate-700 pb-3">
+              <h2 className="text-xl sm:text-2xl font-bold mb-6 text-amber-400 flex justify-between items-center flex-wrap gap-2">
+  <span>👨‍🍳 Pedidos na Cozinha</span>
+  
+  <div className="flex items-center gap-2">
+    <button
+      onClick={() => setSomAtivo(!somAtivo)}
+      className={`text-xs px-3 py-1.5 rounded font-bold transition-colors ${
+        somAtivo ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300'
+      }`}
+    >
+      {somAtivo ? '🔔 Som: ON' : '🔕 Som: OFF'}
+    </button>
+
+    <button onClick={buscarPedidos} className="text-xs bg-slate-700 px-3 py-1.5 rounded h-full">
+      🔄 Atualizar
+    </button>
+  </div>
+</h2>
                 <span>👨‍🍳 Pedidos na Cozinha</span>
-                <button onClick={buscarPedidos} className="text-xs bg-slate-700 px-3 py-1.5 rounded hover:bg-slate-600 transition-all">🔄 Atualizar</button>
-              </h2>
+                <button onClick={buscarPedidos} className="text-xs bg-slate-700 px-3 py-1.5 rounded hover:bg-slate-600 transition-all">🔄 Atualizar</button>              
               {pedidos.length === 0 ? <p className="text-center text-slate-400 py-10">Nenhum pedido realizado.</p> : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {pedidos.map((p) => {
