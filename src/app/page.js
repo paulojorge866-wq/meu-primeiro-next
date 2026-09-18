@@ -856,8 +856,7 @@ export default function Home() {
     </button>
   </div>
 </h2>
-                <span>👨‍🍳 Pedidos na Cozinha</span>
-                <button onClick={buscarPedidos} className="text-xs bg-slate-700 px-3 py-1.5 rounded hover:bg-slate-600 transition-all">🔄 Atualizar</button>              
+              
               {pedidos.length === 0 ? <p className="text-center text-slate-400 py-10">Nenhum pedido realizado.</p> : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {pedidos.map((p) => {
