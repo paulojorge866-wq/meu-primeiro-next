@@ -19,7 +19,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json()
-    const { itens, total, mesa, pagamentoStatus } = body
+    const { itens, total, mesa, pagamentoStatus, documento } = body
 
     if (!itens || itens.length === 0) {
       return NextResponse.json({ error: 'O carrinho está vazio.' }, { status: 400 })
@@ -28,19 +28,20 @@ export async function POST(request) {
     const client = await clientPromise
     const db = client.db('devlanches')
 
-    const novoPedido = {
-      mesa: Number(mesa) || 1,
-      itens: itens.map((item) => ({
-        nome: item.nome,
-        preco: Number(item.preco),
-        quantidade: Number(item.quantidade),
-        observacao: item.observacao || '', // Suporte a observações individuais por item
-      })),
-      total: Number(total),
-      status: 'Pendente',
-      pagamentoStatus: pagamentoStatus || 'Pendente',
-      criadoEm: new Date(),
-    }
+const novoPedido = {
+  mesa: Number(mesa) || 1,
+  itens: itens.map((item) => ({
+    nome: item.nome,
+    preco: Number(item.preco),
+    quantidade: Number(item.quantidade),
+    observacao: item.observacao || '',
+  })),
+  total: Number(total),
+  status: 'Pendente',
+  pagamentoStatus: pagamentoStatus || 'Pendente',
+  documento: documento || '',
+  criadoEm: new Date(),
+}
 
     const resultado = await db.collection('pedidos').insertOne(novoPedido)
 
@@ -60,7 +61,8 @@ export async function PUT(request) {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     const body = await request.json()
-    const { status, pagamentoStatus, formaPagamento, codigoFechamento, valorPago, troco } = body
+    console.log(">>> BODY RECEBIDO NO PUT:", body);
+    const { status, pagamentoStatus, formaPagamento, codigoFechamento, valorPago, troco, documento } = body
 
     if (!id) return NextResponse.json({ error: 'ID obrigatório.' }, { status: 400 })
 
@@ -74,6 +76,7 @@ export async function PUT(request) {
     if (codigoFechamento) camposAtualizados.codigoFechamento = codigoFechamento
     if (valorPago !== undefined) camposAtualizados.valorPago = Number(valorPago)
     if (troco !== undefined) camposAtualizados.troco = Number(troco)
+      if (documento) camposAtualizados.documento = documento
 
     await db.collection('pedidos').updateOne(
       { _id: new ObjectId(id) },

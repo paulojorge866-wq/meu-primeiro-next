@@ -12,6 +12,7 @@ export default function Home() {
   const [produtos, setProdutos] = useState([])
   const [pedidos, setPedidos] = useState([])
   const [carregando, setCarregando] = useState(true)
+  const [documento, setDocumento] = useState('')
 
   // 🔴 Estados e lógica para o som da cozinha
   const [somAtivo, setSomAtivo] = useState(false)
@@ -35,8 +36,41 @@ export default function Home() {
   const [descricao, setDescricao] = useState('')
   const [categoria, setCategoria] = useState('Lanches')
   const [imagem, setImagem] = useState('')
+  const [preview, setPreview] = useState('')
   const [editandoId, setEditandoId] = useState(null)
   const [enviando, setEnviando] = useState(false)
+
+  const handleImageChange = (e) => {
+  const file = e.target.files[0]
+  if (file) {
+    setImagem(file)
+    setPreview(URL.createObjectURL(file)) // Cria o link temporário para pré-visualizar
+  }
+}
+const removerFoto = () => {
+    setImagem(null)
+    setPreview('')
+  }
+
+  const handleDocumentoChange = (e) => {
+    let value = e.target.value.replace(/\D/g, '')
+    if (value.length > 14) value = value.slice(0, 14)
+
+    if (value.length <= 11) {
+      value = value
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+    } else {
+      value = value
+        .replace(/^(\d{2})(\d)/, '$1.$2')
+        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1/$2')
+        .replace(/(\d{4})(\d)/, '$1-$2')
+    }
+
+    setDocumento(value)
+  }
 
   // Filtros e Carrinho
   const [filtroCategoria, setFiltroCategoria] = useState('Todos')
@@ -50,6 +84,10 @@ export default function Home() {
   const [produtoExtraId, setProdutoExtraId] = useState('')
   const [qtdExtra, setQtdExtra] = useState(1)
   const [obsExtra, setObsExtra] = useState('')
+  const [carregandoFechamento, setCarregandoFechamento] = useState(false)
+  const [modalConfirmacao, setModalConfirmacao] = useState(false)
+  const [mensagemSucesso, setMensagemSucesso] = useState('')
+  
 
   // Calculadora de Troco e Divisão de Pessoas
   const [valorRecebido, setValorRecebido] = useState('')
@@ -157,11 +195,12 @@ export default function Home() {
           pagamentoStatus: 'Pendente',
         }),
       })
-      if (res.ok) {
-        alert(`Pedido da Mesa ${mesa} enviado para a cozinha!`)
-        setCarrinho([])
-        await buscarPedidos()
-      }
+     if (res.ok) {
+  setMensagemSucesso(`Pedido da Mesa ${mesa} enviado para a cozinha!`)
+  setTimeout(() => setMensagemSucesso(''), 3000)
+  setCarrinho([])
+  await buscarPedidos()
+}
     } catch (erro) {
       console.error(erro)
     }
@@ -187,30 +226,37 @@ export default function Home() {
           ],
           total: Number(prod.preco) * Number(qtdExtra),
           pagamentoStatus: 'Pendente',
+          documento: documento,
         }),
       })
       if (res.ok) {
         await buscarPedidos()
         setQtdExtra(1)
         setObsExtra('')
+        setDocumento('')
       }
     } catch (erro) {
       console.error(erro)
     }
   }
 
-  async function cancelarPedido(idPedido) {
-    if (!confirm('Deseja realmente cancelar/estornar este pedido da mesa?')) return
-    try {
-      const res = await fetch(`/api/pedidos?id=${idPedido}`, { method: 'DELETE' })
-      if (res.ok) {
-        alert('Pedido cancelado e estornado da mesa!')
-        await buscarPedidos()
-      }
-    } catch (erro) {
-      console.error(erro)
+async function cancelarPedido(idPedido) {
+  try {
+    const res = await fetch(`/api/pedidos?id=${idPedido}`, { method: 'DELETE' });
+    if (res.ok) {
+      // 1. Aciona o toast de sucesso que criamos
+      setMensagemSucesso('Pedido cancelado e estornado com sucesso!');
+      
+      // 2. Faz o aviso sumir após 3 segundos
+      setTimeout(() => setMensagemSucesso(''), 5000);
+      
+      // 3. Atualiza a lista de pedidos na tela
+      await buscarPedidos();
     }
+  } catch (erro) {
+    console.error('Erro ao cancelar pedido:', erro);
   }
+}
 
   async function atualizarStatusPedido(id, novoStatus) {
     try {
@@ -225,21 +271,24 @@ export default function Home() {
     }
   }
 
-  async function fecharContaMesa(numMesa, totalMesa) {
-    const abertos = pedidos.filter((p) => Number(p.mesa) === Number(numMesa) && p.pagamentoStatus !== 'Pago')
-    if (abertos.length === 0) return
+async function fecharContaMesa(numMesa, totalMesa) {
+  if (carregandoFechamento) return;
 
-    const trocoCalculado = formaPagamento === 'Dinheiro' && Number(valorRecebido) >= totalMesa
-      ? Number(valorRecebido) - totalMesa
-      : 0
+  const abertos = pedidos.filter((p) => Number(p.mesa) === Number(numMesa) && p.pagamentoStatus !== 'Pago');
+  if (abertos.length === 0) return;
 
-    if (!confirm(`Confirmar pagamento (${formaPagamento}) e fechar Mesa ${numMesa}?`)) return
+  const trocoCalculado = formaPagamento === 'Dinheiro' && Number(valorRecebido) >= totalMesa
+    ? Number(valorRecebido) - totalMesa
+    : 0;
 
-    const codigoFechamento = Date.now().toString()
+  const codigoFechamento = Date.now().toString();
 
-    try {
-      for (const p of abertos) {
-        await fetch(`/api/pedidos?id=${p._id}`, {
+  try {
+    setCarregandoFechamento(true);
+
+    await Promise.all(
+      abertos.map((p) =>
+        fetch(`/api/pedidos?id=${p._id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -249,18 +298,23 @@ export default function Home() {
             codigoFechamento,
             valorPago: formaPagamento === 'Dinheiro' ? Number(valorRecebido) : totalMesa,
             troco: trocoCalculado,
-          }),
+            documento: documento
+          })
         })
-      }
-      alert(`Mesa ${numMesa} fechada e liberada com sucesso!`)
-      setMesaSelecionada(null)
-      setValorRecebido('')
-      setQtdPessoasDivisao(1)
-      await buscarPedidos()
-    } catch (erro) {
-      console.error(erro)
-    }
+      )
+    );
+
+   setMensagemSucesso(`Conta da Mesa ${numMesa} fechada com sucesso!`);
+setTimeout(() => setMensagemSucesso(''), 5000);
+setMesaSelecionada(null);
+await buscarPedidos();
+
+  } catch (erro) {
+    console.error('Erro ao fechar mesa:', erro);
+  } finally {
+    setCarregandoFechamento(false);
   }
+}
 
   // PREPARAR E IMPRIMIR COMPROVANTE DO CLIENTE
   function imprimirComprovanteCliente(dadosMesaOuVenda) {
@@ -271,28 +325,47 @@ export default function Home() {
     let dataHoraStr = new Date().toISOString()
     let valPago = 0
     let trocoVal = 0
+    let docCliente = dadosMesaOuVenda.documento || documento || ''
 
     // Se for clicado na aba de Mesas (Mesa em aberto)
     if (typeof dadosMesaOuVenda === 'number' || typeof dadosMesaOuVenda === 'string') {
       numMesa = dadosMesaOuVenda
       const pedidosMesa = pedidos.filter((p) => Number(p.mesa) === Number(numMesa) && p.pagamentoStatus !== 'Pago')
-      pedidosMesa.forEach((p) => {
-        itensCupom.push(...p.itens)
-      })
+pedidosMesa.forEach((p) => {
+      itensCupom.push(...p.itens)
+    })
+
+    if (documento && documento.trim() !== '') {
+      docCliente = documento
+    } else {
+      const pedidoComDoc = pedidosMesa.find(p => p.documento && p.documento.trim() !== '')
+      if (pedidoComDoc) {
+        docCliente = pedidoComDoc.documento
+      }
+    }
       totalCupom = pedidosMesa.reduce((acc, p) => acc + Number(p.total), 0)
       formaPag = formaPagamento
       valPago = Number(valorRecebido) || totalCupom
       trocoVal = valPago > totalCupom ? valPago - totalCupom : 0
     } else {
-      // Se for clicado na aba de Relatório (Mesa já paga)
-      numMesa = dadosMesaOuVenda.mesa
-      itensCupom = dadosMesaOuVenda.itens
-      totalCupom = dadosMesaOuVenda.total
-      formaPag = dadosMesaOuVenda.formaPagamento
-      dataHoraStr = dadosMesaOuVenda.data
-      valPago = dadosMesaOuVenda.valorPago || totalCupom
-      trocoVal = dadosMesaOuVenda.troco || 0
-    }
+  // Se for clicado na aba de Relatório (Mesa já paga)
+  numMesa = dadosMesaOuVenda.mesa
+  itensCupom = dadosMesaOuVenda.itens
+  totalCupom = dadosMesaOuVenda.total
+  formaPag = dadosMesaOuVenda.formaPagamento
+  dataHoraStr = dadosMesaOuVenda.data
+  valPago = dadosMesaOuVenda.valorPago || totalCupom
+  trocoVal = dadosMesaOuVenda.troco || 0
+  console.log(">>> PRIMEIRO ITEM DA LISTA:", dadosMesaOuVenda?.itens?.[0])
+// Procura o documento na raiz, no 1º item da lista de 'itens' ou no estado
+// Tenta ler o documento da raiz, do primeiro item da lista de 'itens' ou de um array
+const docDoBanco = 
+  dadosMesaOuVenda?.documento || 
+  dadosMesaOuVenda?.itens?.[0]?.documento
+
+// Se não existir no objeto da venda, pega no estado 'documento' do formulário
+const docCliente = docDoBanco || documento || 'CPF-NAO-INFORMADO'
+}
 
     // Consolida itens repetidos para o cupom
     const itensAgrupados = Object.values(
@@ -307,21 +380,21 @@ export default function Home() {
       }, {})
     )
 
-    setDadosCupomCliente({
-      mesa: numMesa,
-      itens: itensAgrupados,
-      total: totalCupom,
-      formaPagamento: formaPag,
-      dataHora: dataHoraStr,
-      valorPago: valPago,
-      troco: trocoVal,
-    })
+setDadosCupomCliente({
+  mesa: numMesa,
+  itens: itensAgrupados,
+  total: totalCupom,
+  formaPagamento: formaPag,
+  dataHora: dataHoraStr,
+  valorPago: valPago,
+  troco: trocoVal,
+  documento: docCliente // <-- Envia o documento processado
+})
 
-    // Dispara a impressão após atualizar o estado
-    setTimeout(() => {
-      window.print()
-    }, 100)
-  }
+setTimeout(() => {
+  window.print()
+}, 300)
+}
 
   function iniciarEdicao(produto) {
     setEditandoId(produto._id)
@@ -364,14 +437,17 @@ export default function Home() {
   }
 
   async function handleExcluir(id) {
-    if (!confirm('Excluir item?')) return
-    try {
-      const res = await fetch(`/api/produtos?id=${id}`, { method: 'DELETE' })
-      if (res.ok) await buscarProdutos()
-    } catch (erro) {
-      console.error(erro)
+  try {
+    const res = await fetch(`/api/produtos?id=${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setMensagemSucesso('Produto excluído com sucesso!');
+      setTimeout(() => setMensagemSucesso(''), 5000);
+      await buscarProdutos();
     }
+  } catch (erro) {
+    console.error('Erro ao excluir produto:', erro);
   }
+}
 
   const produtosFiltrados = produtos.filter((p) => {
     const bateuCat = filtroCategoria === 'Todos' || (p.categoria || 'Lanches') === filtroCategoria
@@ -384,24 +460,25 @@ export default function Home() {
   const pedidosPagos = pedidos.filter((p) => p.pagamentoStatus === 'Pago')
 
   const vendasAgrupadas = {}
-  pedidosPagos.forEach((p) => {
-    const key = p.codigoFechamento || p._id
-    if (!vendasAgrupadas[key]) {
-      vendasAgrupadas[key] = {
-        id: key,
-        mesa: p.mesa,
-        itens: [...p.itens],
-        total: Number(p.total),
-        formaPagamento: p.formaPagamento || 'Pix',
-        data: p.criadoEm,
-        valorPago: p.valorPago || p.total,
-        troco: p.troco || 0,
-      }
-    } else {
-      vendasAgrupadas[key].itens.push(...p.itens)
-      vendasAgrupadas[key].total += Number(p.total)
+pedidosPagos.forEach((p) => {
+  const key = p.codigoFechamento || p._id
+  if (!vendasAgrupadas[key]) {
+    vendasAgrupadas[key] = {
+      id: key,
+      mesa: p.mesa,
+      itens: [...p.itens],
+      total: Number(p.total),
+      formaPagamento: p.formaPagamento || 'Pix',
+      data: p.criadoEm,
+      valorPago: p.valorPago || p.total,
+      troco: p.troco || 0,
+      documento: p.documento || '', // <- ADICIONAR ESSA LINHA
     }
-  })
+  } else {
+    vendasAgrupadas[key].itens.push(...p.itens)
+    vendasAgrupadas[key].total += Number(p.total)
+  }
+})
 
   const relatorioVendasBruto = Object.values(vendasAgrupadas).sort((a, b) => new Date(b.data) - new Date(a.data))
 
@@ -443,7 +520,7 @@ export default function Home() {
       <main className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4 sm:p-6">
         <div className="bg-slate-800 border border-slate-700 p-6 sm:p-8 rounded-2xl shadow-2xl max-w-sm w-full">
           <div className="text-center mb-6">
-            <h1 className="text-3xl font-extrabold text-amber-500 mb-1">🍔 DevLanches</h1>
+            <h1 className="text-3xl font-extrabold text-amber-500 mb-1"> PANAS</h1>
             <p className="text-xs text-slate-400">Acesso Restrito</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -477,6 +554,14 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-900 text-white p-3 sm:p-6">
+
+    {/* TOAST / NOTIFICAÇÃO TEMPORÁRIA */}
+      {mensagemSucesso && (
+        <div className="fixed top-5 right-5 bg-emerald-600 text-white font-medium px-5 py-3 rounded-xl shadow-2xl z-50 animate-bounce flex items-center gap-2 border border-emerald-500/30 backdrop-blur-md">
+          <span className="text-lg">✅</span>
+          <span>{mensagemSucesso}</span>
+        </div>
+      )}
       
       {/* ==================================================================== */}
       {/* ESTILOS DE IMPRESSÃO EXCLUSIVOS PARA O CUPOM DO CLIENTE (PRINT ONLY)  */}
@@ -504,12 +589,15 @@ export default function Home() {
       {/* CUPOM TÉRMICO / COMPROVANTE DO CLIENTE (Aparece apenas ao imprimir) */}
       {dadosCupomCliente && (
         <div className="only-print max-w-xs mx-auto text-black font-mono text-xs p-2">
-          <div className="text-center border-b border-black pb-2 mb-2">
-            <h1 className="text-base font-bold">🍔 DevLanches</h1>
-            <p className="text-[10px]">Comprovante de Consumo</p>
-            <p className="text-[10px] mt-1">Data/Hora: {formatarDataHora(dadosCupomCliente.dataHora)}</p>
-            <p className="text-sm font-bold mt-1">MESA {dadosCupomCliente.mesa}</p>
-          </div>
+<div className="text-center border-b border-black pb-2 mb-2">
+  <h1 className="text-base font-bold">PANAS</h1>
+  <p className="text-[10px]">Comprovante de Consumo</p>
+  <p className="text-[10px] mt-1">Data/Hora: {formatarDataHora(dadosCupomCliente.dataHora)}</p>
+  <p className="text-sm font-bold mt-1">MESA {dadosCupomCliente.mesa}</p>
+<p className="text-[10px] mt-1">
+  CPF/CNPJ: {dadosCupomCliente?.documento || 'CPF-NAO-INFORMADO'}
+</p>
+</div>
 
           <table className="w-full text-left mb-2 border-b border-black pb-2">
             <thead>
@@ -555,7 +643,7 @@ export default function Home() {
       <div className="no-print">
         <header className="max-w-6xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center border-b border-slate-700 pb-4 gap-4">
           <div className="text-center md:text-left">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-amber-500">🍔 DevLanches</h1>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-amber-500"> PANAS</h1>
             <p className="text-xs text-slate-400">Atendente: <strong className="text-amber-400">admin</strong></p>
           </div>
           <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-3 w-full md:w-auto">
@@ -586,7 +674,36 @@ export default function Home() {
                     <option value="Lanches">🍔 Lanches</option><option value="Bebidas">🥤 Bebidas</option><option value="Sobremesas">🍰 Sobremesas</option>
                   </select>
                   <input type="number" step="0.01" value={preco} onChange={(e) => setPreco(e.target.value)} placeholder="Preço" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white focus:border-amber-500 outline-none" />
-                  <input type="text" value={imagem} onChange={(e) => setImagem(e.target.value)} placeholder="URL Imagem" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white focus:border-amber-500 outline-none" />
+                  {/* Campo de Upload de Foto com Preview */}
+<div className="flex flex-col gap-2 my-2">
+  <label className="text-xs font-medium text-slate-300">Foto do Produto</label>
+  
+  <input 
+    type="file" 
+    accept="image/*"
+    onChange={handleImageChange}
+    className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:bg-amber-500 file:text-white file:font-semibold hover:file:bg-amber-600 cursor-pointer"
+  />
+
+  {/* Exibe a imagem selecionada antes de salvar */}
+  {preview && (
+    <div className="mt-1 relative w-full rounded-lg overflow-hidden border border-slate-700 p-1">
+      <img 
+        src={preview} 
+        alt="Pré-visualização" 
+        className="w-full h-full object-cover"
+      />
+      <button
+      type="button"
+      onClick={removerFoto}
+      className="mt-1 w-full py-1 px-2 bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold rounded transition-colors"
+    >
+      Remover Foto
+    </button>
+    </div>
+  )}
+
+</div>
                   <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Descrição" rows="2" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white focus:border-amber-500 outline-none"></textarea>
                   <button type="submit" disabled={enviando} className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-2 rounded text-sm disabled:opacity-50">{enviando ? 'Salvando...' : 'Salvar'}</button>
                   {editandoId && <button type="button" onClick={cancelarEdicao} className="w-full bg-slate-700 text-slate-300 font-semibold py-1 rounded text-xs mt-1">Cancelar</button>}
@@ -732,6 +849,17 @@ export default function Home() {
                           />
                           <button onClick={adicionarItemDiretoNaMesa} className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-1.5 rounded text-xs transition-all">+ Lançar na Mesa</button>
                         </div>
+                        {/* Campo CPF / CNPJ do Cliente da Mesa */}
+<div className="flex flex-col gap-1 mb-3">
+  <label className="text-xs font-medium text-slate-300">CPF ou CNPJ para a Nota/Recibo</label>
+  <input
+    type="text"
+    value={documento}
+    onChange={handleDocumentoChange}
+    placeholder="000.000.000-00 ou 00.000.000/0001-00"
+    className="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
+  />
+</div>
 
                         {pedidosMesa.length === 0 ? (
                           <p className="text-xs text-slate-400 text-center">Sem consumo</p>
@@ -824,7 +952,13 @@ export default function Home() {
 
                             <div className="border-t border-slate-700 pt-2 space-y-2">
                               <div className="flex justify-between items-center"><span className="text-sm font-bold">Total da Mesa:</span><span className="text-2xl font-extrabold text-green-400">R$ {totalMesa.toFixed(2)}</span></div>
-                              <button onClick={() => fecharContaMesa(mesaSelecionada, totalMesa)} className="w-full bg-green-500 hover:bg-green-600 text-slate-950 font-bold py-2.5 rounded text-sm transition-all">💵 Fechar e Liberar Mesa</button>
+                              <button 
+  disabled={carregandoFechamento}
+  onClick={() => fecharContaMesa(mesaSelecionada, totalMesa)} 
+  className={`w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors ${carregandoFechamento ? 'opacity-50 cursor-not-allowed' : ''}`}
+>
+  {carregandoFechamento ? 'A fechar mesa...' : 'Fechar Mesa'}
+</button>
                             </div>
                           </div>
                         )}
@@ -1045,6 +1179,12 @@ export default function Home() {
                                 <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">
                                   🧾 Recibo Detalhado da Mesa {venda.mesa}
                                 </h4>
+
+                                {venda.documento && (
+  <p className="text-xs text-slate-300 font-mono mt-1">
+    <strong>CPF/CNPJ:</strong> {venda.documento}
+  </p>
+)}
                                 <button
                                   onClick={() => imprimirComprovanteCliente(venda)}
                                   className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-2.5 py-1 rounded transition-all shadow"
@@ -1098,8 +1238,10 @@ export default function Home() {
                                 <span className="text-amber-400 font-bold">Total Consolidado: R$ {venda.total.toFixed(2)}</span>
                               </div>
                             </div>
+                            
                           )}
                         </div>
+                        
                       )
                     })}
                   </div>
@@ -1109,6 +1251,39 @@ export default function Home() {
           )}
         </div>
       </div>
+      {/* MODAL DE CONFIRMAÇÃO DE FECHAMENTO DE MESA */}
+{modalConfirmacao && (
+  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 max-w-sm w-full text-center space-y-4 shadow-2xl">
+      <h3 className="text-xl font-bold text-white">Confirmar Fechamento</h3>
+      <p className="text-slate-300 text-sm">
+        Deseja confirmar o pagamento em <strong className="text-amber-400">{formaPagamento}</strong> e fechar a <strong className="text-amber-400">Mesa {mesaSelecionada}</strong>?
+      </p>
+      <div className="flex gap-3 justify-center pt-2">
+        <button 
+          type="button"
+          onClick={() => setModalConfirmacao(false)}
+          className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg font-medium transition-colors"
+        >
+          Cancelar
+        </button>
+        <button 
+          type="button"
+          onClick={() => {
+            setModalConfirmacao(false);
+            const pedidosMesa = pedidos.filter((p) => Number(p.mesa) === Number(mesaSelecionada) && p.pagamentoStatus !== 'Pago');
+            const totalDaMesa = pedidosMesa.reduce((acc, p) => acc + (Number(p.preco) * Number(p.quantidade || 1)), 0);
+            fecharContaMesa(mesaSelecionada, totalDaMesa);
+          }}
+          className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold transition-colors"
+        >
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </main>
+    
   )
 }
