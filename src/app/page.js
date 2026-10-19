@@ -3,16 +3,36 @@
 import { useState, useEffect, useRef } from 'react'
 
 export default function Home() {
-  const [autenticado, setAutenticado] = useState(false)
+const [autenticado, setAutenticado] = useState(false);
+const [carregandoAuth, setCarregandoAuth] = useState(true);
   const [usuarioInput, setUsuarioInput] = useState('')
   const [senhaInput, setSenhaInput] = useState('')
   const [erroLogin, setErroLogin] = useState('')
 
-  const [abaAtiva, setAbaAtiva] = useState('cardapio')
+const [abaAtiva, setAbaAtiva] = useState('cardapio');
   const [produtos, setProdutos] = useState([])
   const [pedidos, setPedidos] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [documento, setDocumento] = useState('')
+
+  function mudarAba(novaAba) {
+  setAbaAtiva(novaAba);
+  localStorage.setItem('panas_aba_ativa', novaAba);
+}
+
+useEffect(() => {
+  const sessaoSalva = localStorage.getItem('panas_autenticado');
+  if (sessaoSalva === 'true') {
+    setAutenticado(true);
+  }
+
+  const abaSalva = localStorage.getItem('panas_aba_ativa');
+  if (abaSalva) {
+    setAbaAtiva(abaSalva);
+  }
+
+  setCarregandoAuth(false);
+}, []);
 
   // 🔴 Estados e lógica para o som da cozinha
   const [somAtivo, setSomAtivo] = useState(false)
@@ -101,20 +121,22 @@ const removerFoto = () => {
   const [dadosCupomCliente, setDadosCupomCliente] = useState(null)
 
   function handleLogin(e) {
-    e.preventDefault()
-    if (usuarioInput === 'admin' && senhaInput === '1234') {
-      setAutenticado(true)
-      setErroLogin('')
-    } else {
-      setErroLogin('Usuário/senha incorretos!')
-    }
+  e.preventDefault();
+  if (usuarioInput === 'admin' && senhaInput === '1234') {
+    localStorage.setItem('panas_autenticado', 'true'); // <--- Linha adicionada
+    setAutenticado(true);
+    setErroLogin('');
+  } else {
+    setErroLogin('Usuário/senha incorretos!');
   }
+}
 
   function handleLogout() {
-    setAutenticado(false)
-    setUsuarioInput('')
-    setSenhaInput('')
-  }
+  localStorage.removeItem('panas_autenticado'); // <--- Linha adicionada
+  setAutenticado(false);
+  setUsuarioInput('');
+  setSenhaInput('');
+}
 
   async function buscarProdutos() {
     try {
@@ -515,6 +537,13 @@ pedidosPagos.forEach((p) => {
     })
   }
 
+  if (carregandoAuth) {
+  return (
+    <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center font-bold">
+      A carregar PANAS...
+    </div>
+  )
+}
   if (!autenticado) {
     return (
       <main className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4 sm:p-6">
@@ -648,19 +677,24 @@ pedidosPagos.forEach((p) => {
           </div>
           <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-3 w-full md:w-auto">
             <div className="grid grid-cols-2 sm:flex bg-slate-800 p-1 rounded-xl border border-slate-700 gap-1 w-full sm:w-auto">
-              <button onClick={() => setAbaAtiva('cardapio')} className={`px-2.5 py-2 rounded-lg text-xs font-bold transition-all text-center ${abaAtiva === 'cardapio' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-300 hover:text-white'}`}>📋 Cardápio</button>
-              <button onClick={() => setAbaAtiva('mesas')} className={`px-2.5 py-2 rounded-lg text-xs font-bold transition-all text-center ${abaAtiva === 'mesas' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-300 hover:text-white'}`}>🪑 Mesas</button>
-              <button onClick={() => setAbaAtiva('cozinha')} className={`px-2.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${abaAtiva === 'cozinha' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-300 hover:text-white'}`}>
-                👨‍🍳 Cozinha
-                {pedidos.filter((p) => p.status !== 'Concluído').length > 0 && (
-                  <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-extrabold">{pedidos.filter((p) => p.status !== 'Concluído').length}</span>
-                )}
-              </button>
-              <button onClick={() => setAbaAtiva('relatorio')} className={`px-2.5 py-2 rounded-lg text-xs font-bold transition-all text-center ${abaAtiva === 'relatorio' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-300 hover:text-white'}`}>📊 Relatório</button>
-            </div>
-            <button onClick={handleLogout} className="bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 px-3 py-2 rounded-xl text-xs font-bold transition-all w-full sm:w-auto">🚪 Sair</button>
-          </div>
-        </header>
+<button onClick={() => mudarAba('cardapio')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${abaAtiva === 'cardapio' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-300 hover:text-white'}`}>Cardápio</button>
+<button onClick={() => mudarAba('mesas')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${abaAtiva === 'mesas' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-300 hover:text-white'}`}>Mesas</button>
+<button onClick={() => mudarAba('cozinha')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${abaAtiva === 'cozinha' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-300 hover:text-white'}`}>
+  🍳 Cozinha
+  {pedidos.filter((p) => p.status !== 'Concluído').length > 0 && (
+    <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-1">
+      {pedidos.filter((p) => p.status !== 'Concluído').length}
+    </span>
+  )}
+</button>
+<button onClick={() => mudarAba('relatorio')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${abaAtiva === 'relatorio' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-300 hover:text-white'}`}>📊 Relatório</button>
+</div>
+
+<button onClick={handleLogout} className="bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white px-3 py-1.5 rounded-xl font-bold transition">
+  Sair
+</button>
+</div>
+</header>
 
         <div className="max-w-6xl mx-auto">
           {abaAtiva === 'cardapio' && (
@@ -1285,5 +1319,5 @@ pedidosPagos.forEach((p) => {
 )}
     </main>
     
-  )
+  );
 }
